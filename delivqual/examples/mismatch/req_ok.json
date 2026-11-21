@@ -1,0 +1,11 @@
+{
+  "kind": "request",
+  "version": 1,
+  "request_id": "req-mismatch-ok",
+  "time": 10,
+  "audience": "dept-x",
+  "geo": "cn",
+  "tables": [
+    {"table_id": "T", "classification": "report"}
+  ]
+}

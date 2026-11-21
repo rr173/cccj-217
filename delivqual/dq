@@ -1,0 +1,3 @@
+#!/bin/sh
+# delivqual 命令行包装：任意目录下可用
+PYTHONPATH="$(cd "$(dirname "$0")" && pwd)${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m delivqual "$@"

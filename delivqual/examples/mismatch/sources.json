@@ -1,0 +1,23 @@
+{
+  "kind": "sources",
+  "version": 1,
+  "sources": [
+    {
+      "source_id": "E",
+      "snapshot": "e1",
+      "rows": ["e-r1"],
+      "options": [
+        {
+          "option_id": "E1",
+          "ops": ["raw"],
+          "audiences": ["dept-x"],
+          "geos": ["cn"],
+          "time": [0, 50],
+          "notices": ["n-E1"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    }
+  ]
+}

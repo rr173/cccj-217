@@ -1,0 +1,20 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "mismatch-v1",
+  "nodes": [
+    {"node_id": "scanE", "op": "scan", "inputs": []}
+  ],
+  "tables": [
+    {"table_id": "T", "node_id": "scanE", "rows": ["t1"]}
+  ],
+  "contribs": [
+    {"id": "cE", "type": "source", "source_id": "E", "snapshot": "e1", "row_id": "e-r1"},
+    {"id": "cT", "type": "all", "edges": [
+      {"child": "cE", "via_node": "scanE", "via_row": "t1"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "T", "row": "t1", "expr": "cT"}
+  ]
+}

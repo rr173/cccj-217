@@ -1,0 +1,33 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "mutex-v1",
+  "nodes": [
+    {"node_id": "scanM", "op": "scan", "inputs": []},
+    {"node_id": "scanN", "op": "scan", "inputs": []},
+    {"node_id": "aggN", "op": "aggregate", "inputs": ["scanN"]}
+  ],
+  "tables": [
+    {"table_id": "TM", "node_id": "scanM", "rows": ["m1"]},
+    {"table_id": "TN", "node_id": "scanN", "rows": ["n1"]},
+    {"table_id": "TN2", "node_id": "aggN", "rows": ["n2"]}
+  ],
+  "contribs": [
+    {"id": "cM1", "type": "source", "source_id": "M", "snapshot": "m1", "row_id": "m-r1"},
+    {"id": "cN1", "type": "source", "source_id": "N", "snapshot": "n1", "row_id": "n-r1"},
+    {"id": "cTM", "type": "all", "edges": [
+      {"child": "cM1", "via_node": "scanM", "via_row": "m1"}
+    ]},
+    {"id": "cTN", "type": "all", "edges": [
+      {"child": "cN1", "via_node": "scanN", "via_row": "n1"}
+    ]},
+    {"id": "cTN2", "type": "all", "edges": [
+      {"child": "cN1", "via_node": "aggN", "via_row": "n2"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "TM", "row": "m1", "expr": "cTM"},
+    {"table": "TN", "row": "n1", "expr": "cTN"},
+    {"table": "TN2", "row": "n2", "expr": "cTN2"}
+  ]
+}

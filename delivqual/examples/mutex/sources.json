@@ -1,0 +1,60 @@
+{
+  "kind": "sources",
+  "version": 1,
+  "sources": [
+    {
+      "source_id": "M",
+      "snapshot": "m1",
+      "rows": ["m-r1"],
+      "options": [
+        {
+          "option_id": "M1",
+          "ops": ["raw"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-M1"],
+          "classifications": ["report"],
+          "mutex": [{"source_id": "N", "snapshot": "n1", "option_id": "N1"}]
+        },
+        {
+          "option_id": "M2",
+          "ops": ["aggregate"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-M2"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "N",
+      "snapshot": "n1",
+      "rows": ["n-r1"],
+      "options": [
+        {
+          "option_id": "N1",
+          "ops": ["raw"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-N1"],
+          "classifications": ["report"],
+          "mutex": []
+        },
+        {
+          "option_id": "N2",
+          "ops": ["aggregate"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-N2"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    }
+  ]
+}

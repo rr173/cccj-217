@@ -1,0 +1,40 @@
+{
+  "kind": "sources",
+  "version": 1,
+  "sources": [
+    {
+      "source_id": "A",
+      "snapshot": "a1",
+      "rows": ["a-r1"],
+      "options": [
+        {
+          "option_id": "A1",
+          "ops": ["raw", "union"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-AA"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "B",
+      "snapshot": "b1",
+      "rows": ["b-r1"],
+      "options": [
+        {
+          "option_id": "B1",
+          "ops": ["raw", "union"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-BB"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    }
+  ]
+}

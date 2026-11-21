@@ -1,0 +1,40 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "main-drill-v2",
+  "nodes": [
+    {"node_id": "scanS", "op": "scan", "inputs": []},
+    {"node_id": "scanT", "op": "scan", "inputs": []},
+    {"node_id": "aggS", "op": "aggregate", "inputs": ["scanS"]},
+    {"node_id": "uniG", "op": "union_all", "inputs": ["aggS", "scanT"]},
+    {"node_id": "dedG", "op": "deduplicate", "inputs": ["uniG"]}
+  ],
+  "tables": [
+    {"table_id": "R", "node_id": "scanS", "rows": ["R1"]},
+    {"table_id": "G", "node_id": "dedG", "rows": ["G1"]}
+  ],
+  "contribs": [
+    {"id": "cS1", "type": "source", "source_id": "S", "snapshot": "s1", "row_id": "s-r1"},
+    {"id": "cT1", "type": "source", "source_id": "T", "snapshot": "t1", "row_id": "t-r1"},
+    {"id": "cR1", "type": "all", "edges": [
+      {"child": "cS1", "via_node": "scanS", "via_row": "R1"}
+    ]},
+    {"id": "cAggS", "type": "all", "edges": [
+      {"child": "cS1", "via_node": "aggS", "via_row": "g-in-1"}
+    ]},
+    {"id": "cViaS", "type": "all", "edges": [
+      {"child": "cAggS", "via_node": "uniG", "via_row": "u-1"}
+    ]},
+    {"id": "cViaT", "type": "all", "edges": [
+      {"child": "cT1", "via_node": "uniG", "via_row": "u-2"}
+    ]},
+    {"id": "cG1", "type": "any", "edges": [
+      {"child": "cViaS", "via_node": "dedG", "via_row": "G1"},
+      {"child": "cViaT", "via_node": "dedG", "via_row": "G1"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "R", "row": "R1", "expr": "cR1"},
+    {"table": "G", "row": "G1", "expr": "cG1"}
+  ]
+}

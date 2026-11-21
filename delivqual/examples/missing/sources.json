@@ -1,0 +1,23 @@
+{
+  "kind": "sources",
+  "version": 1,
+  "sources": [
+    {
+      "source_id": "F",
+      "snapshot": "f1",
+      "rows": ["f-r1", "f-r2"],
+      "options": [
+        {
+          "option_id": "F1",
+          "ops": ["raw"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-F1"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    }
+  ]
+}

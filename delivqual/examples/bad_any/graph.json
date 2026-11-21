@@ -1,0 +1,39 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "bad-any-v1",
+  "nodes": [
+    {"node_id": "scanA", "op": "scan", "inputs": []},
+    {"node_id": "scanB", "op": "scan", "inputs": []},
+    {"node_id": "jnX", "op": "join", "inputs": ["scanA", "scanB"]},
+    {"node_id": "uniU", "op": "union_all", "inputs": ["scanA", "jnX"]},
+    {"node_id": "dedD", "op": "deduplicate", "inputs": ["uniU"]}
+  ],
+  "tables": [
+    {"table_id": "T", "node_id": "dedD", "rows": ["t1"]}
+  ],
+  "contribs": [
+    {"id": "cA", "type": "source", "source_id": "A", "snapshot": "a1", "row_id": "a-r1"},
+    {"id": "cB", "type": "source", "source_id": "B", "snapshot": "b1", "row_id": "b-r1"},
+    {"id": "cDir", "type": "all", "edges": [
+      {"child": "cA", "via_node": "scanA", "via_row": "d-1"}
+    ]},
+    {"id": "cJ", "type": "all", "edges": [
+      {"child": "cA", "via_node": "jnX", "via_row": "j-1#L"},
+      {"child": "cB", "via_node": "jnX", "via_row": "j-1#R"}
+    ]},
+    {"id": "cU1", "type": "all", "edges": [
+      {"child": "cDir", "via_node": "uniU", "via_row": "u-1"}
+    ]},
+    {"id": "cU2", "type": "all", "edges": [
+      {"child": "cJ", "via_node": "uniU", "via_row": "u-2"}
+    ]},
+    {"id": "cT", "type": "any", "edges": [
+      {"child": "cU1", "via_node": "dedD", "via_row": "t1"},
+      {"child": "cU2", "via_node": "dedD", "via_row": "t1"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "T", "row": "t1", "expr": "cT"}
+  ]
+}

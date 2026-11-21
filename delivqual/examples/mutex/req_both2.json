@@ -1,0 +1,12 @@
+{
+  "kind": "request",
+  "version": 1,
+  "request_id": "req-mutex-both2",
+  "time": 10,
+  "audience": "dept-a",
+  "geo": "cn",
+  "tables": [
+    {"table_id": "TM", "classification": "report"},
+    {"table_id": "TN2", "classification": "report"}
+  ]
+}

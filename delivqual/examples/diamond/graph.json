@@ -1,0 +1,32 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "diamond-v1",
+  "nodes": [
+    {"node_id": "scanD", "op": "scan", "inputs": []},
+    {"node_id": "pjA", "op": "project", "inputs": ["scanD"]},
+    {"node_id": "pjB", "op": "project", "inputs": ["scanD"]},
+    {"node_id": "jnJ", "op": "join", "inputs": ["pjA", "pjB"]}
+  ],
+  "tables": [
+    {"table_id": "T1", "node_id": "jnJ", "rows": ["t1"]},
+    {"table_id": "T2", "node_id": "pjA", "rows": ["t2"]}
+  ],
+  "contribs": [
+    {"id": "cD1", "type": "source", "source_id": "D", "snapshot": "d1", "row_id": "d-r1"},
+    {"id": "cA", "type": "all", "edges": [
+      {"child": "cD1", "via_node": "pjA", "via_row": "a-1"}
+    ]},
+    {"id": "cB", "type": "all", "edges": [
+      {"child": "cD1", "via_node": "pjB", "via_row": "b-1"}
+    ]},
+    {"id": "cT1", "type": "all", "edges": [
+      {"child": "cA", "via_node": "jnJ", "via_row": "t1#L"},
+      {"child": "cB", "via_node": "jnJ", "via_row": "t1#R"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "T1", "row": "t1", "expr": "cT1"},
+    {"table": "T2", "row": "t2", "expr": "cA"}
+  ]
+}

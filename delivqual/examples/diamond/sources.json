@@ -1,0 +1,33 @@
+{
+  "kind": "sources",
+  "version": 1,
+  "sources": [
+    {
+      "source_id": "D",
+      "snapshot": "d1",
+      "rows": ["d-r1", "d-r2"],
+      "options": [
+        {
+          "option_id": "P",
+          "ops": ["raw", "project", "join"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-DP"],
+          "classifications": ["report", "dashboard"],
+          "mutex": []
+        },
+        {
+          "option_id": "Q",
+          "ops": ["raw"],
+          "audiences": ["dept-a"],
+          "geos": ["cn"],
+          "time": [0, 100],
+          "notices": ["n-DQ"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    }
+  ]
+}

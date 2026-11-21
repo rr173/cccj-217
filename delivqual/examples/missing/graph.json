@@ -1,0 +1,20 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "missing-v1",
+  "nodes": [
+    {"node_id": "scanF", "op": "scan", "inputs": []}
+  ],
+  "tables": [
+    {"table_id": "T", "node_id": "scanF", "rows": ["t1", "t2"]}
+  ],
+  "contribs": [
+    {"id": "cF1", "type": "source", "source_id": "F", "snapshot": "f1", "row_id": "f-r1"},
+    {"id": "cT1", "type": "all", "edges": [
+      {"child": "cF1", "via_node": "scanF", "via_row": "t1"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "T", "row": "t1", "expr": "cT1"}
+  ]
+}
