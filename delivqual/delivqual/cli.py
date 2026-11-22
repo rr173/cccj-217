@@ -1,13 +1,15 @@
-"""命令行入口：validate / plan / explain-row / verify-plan / build-totals。
+"""命令行入口：validate / plan / explain-row / verify-plan / build-totals /
+quarantine / stitch-lineage。
 
 退出码：
   0  成功（validate 通过 / plan 可行 / verify 有效 / explain / build-totals 正常）
-  10 输入校验错误（含 build-totals 的绑定不符、重复行号、坏记录）
+  10 输入校验错误（含 build-totals 的绑定不符、重复行号、坏记录；
+     quarantine/stitch-lineage 的契约不符与无法接通的接缝）
   11 不可行（plan 给出冲突证书）
   12 unknown（预算耗尽）
   13 verify-plan 拒绝
   2  用法或 IO 错误
-  （quarantine 同此约定：输入契约不符退出 10，IO 错误退出 2，成功退出 0）
+  （quarantine / stitch-lineage 同此约定：输入契约不符退出 10，IO 错误退出 2，成功退出 0）
 """
 from __future__ import annotations
 
@@ -175,6 +177,30 @@ def cmd_quarantine(args):
     return 0
 
 
+def cmd_stitch(args):
+    """把分阶段落盘的加工图沿清单接成终端报表的一张行级贡献图（只处理血缘）。"""
+    from .stitch import StitchError, stitch_lineage
+    try:
+        sources_obj = load_json(args.sources)
+    except InputError as e:
+        print(f"输入错误: {e}", file=sys.stderr)
+        return 2
+    try:
+        out_path, summary = stitch_lineage(sources_obj, args.manifest, args.out)
+    except StitchError as e:
+        print(json.dumps({"target": "stitch-lineage", "valid": False, "errors": [str(e)]},
+                         ensure_ascii=False, indent=2))
+        return 10
+    except InputError as e:
+        print(f"输入错误: {e}", file=sys.stderr)
+        return 2
+    except OSError as e:
+        print(f"写入失败: {e}", file=sys.stderr)
+        return 2
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="delivqual",
@@ -238,6 +264,15 @@ def main(argv=None):
                     help="失效原行清单 JSON 数组，元素 {source_id, snapshot, row_id}")
     p6.add_argument("--out-dir", required=True, help="目标输出目录（必须此前不存在）")
     p6.set_defaults(fn=cmd_quarantine)
+
+    p7 = sub.add_parser(
+        "stitch-lineage",
+        help="按接续清单把分阶段图接成终端报表的一张行级贡献图（不重跑业务计算、不碰报表载荷）")
+    p7.add_argument("--sources", required=True, help="全阶段共用的真实原行登记 sources.json（只读）")
+    p7.add_argument("--manifest", required=True,
+                    help="接续清单 JSON：terminal/stages（图路径+SHA-256）/bindings（scan→生产阶段表）")
+    p7.add_argument("--out", required=True, help="结果图输出路径（必须此前不存在；失败不留半份文件）")
+    p7.set_defaults(fn=cmd_stitch)
 
     args = ap.parse_args(argv)
     return args.fn(args)

@@ -85,6 +85,25 @@ $DQ verify-plan --sources examples/quarantine/sources.json --graph "$Q/graph.jso
 echo "  withdrawals.json 撤下条目:"
 python3 -c "import json; w=json.load(open('$Q/withdrawals.json')); [print('   撤下', x['table'], x['row'], '根', x['origin_root']) for x in w['withdrawals']]"
 
+echo "========== 4d. stitch-lineage 验收（分阶段血缘接续/接缝错误/共享线性规模） =========="
+python3 -I tests/stitch.py
+# 端到端：把三个落盘阶段接成终端报表的一张行级贡献图，再交给原有 validate/plan/verify-plan
+ST=$OUT/stitch
+rm -f "$ST.json"
+$DQ stitch-lineage \
+  --sources examples/stitch/sources.json \
+  --manifest examples/stitch/manifest.json \
+  --out "$ST.json"
+$DQ validate --sources examples/stitch/sources.json --graph "$ST.json" \
+  --request examples/stitch/request.json > /dev/null && echo "  接续图 validate: 通过"
+$DQ plan --sources examples/stitch/sources.json --graph "$ST.json" \
+  --request examples/stitch/request.json --out "$ST.plan.json" >/dev/null
+$DQ verify-plan --sources examples/stitch/sources.json --graph "$ST.json" \
+  --request examples/stitch/request.json --plan "$ST.plan.json" >/dev/null \
+  && echo "  接续图 plan + verify-plan: valid（上游 aggregate 与下游 join 均未丢）"
+$DQ explain-row --sources examples/stitch/sources.json --graph "$ST.json" \
+  --request examples/stitch/request.json --table Z --row z1 | sed 's/^/  /'
+
 echo "========== 5. 大例基准（运行时生成） =========="
 python3 examples/gen_large.py --out /tmp/large --sources 24 --rows 12000 --tables 4 --seed 7
 $DQ plan --sources /tmp/large/sources.json --graph /tmp/large/graph.json --request /tmp/large/request.json --out $OUT/large_plan.json >/dev/null

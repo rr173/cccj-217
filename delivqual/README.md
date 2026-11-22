@@ -39,6 +39,7 @@ cd delivqual
 | `verify-plan`| 只根据原资料与 plan 独立核实全部合同 | 0 有效 / 13 拒绝 / 12 unknown |
 | `build-totals`| 从两份明细生成部门汇总表与匹配的行级贡献图 | 0 成功 / 10 输入不符 / 2 IO 错误 |
 | `quarantine` | 按失效原行清单隔离交付包：撤下失去充分凭据的记录 | 0 成功 / 10 输入不符 / 2 IO 错误 |
+| `stitch-lineage` | 按接续清单把分阶段落盘的图接成终端报表的一张行级贡献图 | 0 成功 / 10 无法接通或输入不符 / 2 IO 错误 |
 
 `plan` 支持 `--budget-seconds S` 与 `--budget-conflicts N`：预算耗尽返回
 `unknown`（退出码 12），**绝不谎报可行或不可行**。
@@ -298,6 +299,83 @@ cd delivqual
   改名。任何输入不一致（含文件最后一行才发现的重复/无效记录）或写入失败都清理临时
   目录、绝不发布残缺副本，也不修改任何原文件或已有目标。
 
+## stitch-lineage：把分阶段落盘的血缘接成终端报表的一张行级贡献图
+
+采购数据分阶段归档：下游计算读取的是上游已经落盘的报表，终端报表的血缘追踪常常停在
+“读取中间表”这一步。中间表**不是**新的原始来源，不能为它登记替代原来源的许可。
+`stitch-lineage` 只处理血缘：沿清单把各阶段的图接成一张从终端输出行可直接追踪到真实
+原行的贡献图，**不重跑各阶段的业务计算，也不读取或交付报表载荷**。
+
+```sh
+./dq stitch-lineage \
+  --sources examples/stitch/sources.json      `# 全阶段共用的真实原行登记（只读）` \
+  --manifest examples/stitch/manifest.json    `# 终端阶段 + 各阶段图路径/摘要 + 扫描绑定` \
+  --out /tmp/stitch/stitched.json             `# 必须此前不存在；失败不留半份文件`
+```
+
+### 接续清单（manifest）字段
+
+```jsonc
+{
+  "kind": "stitch-manifest", "version": 1,
+  "terminal": "terminal",                     // 唯一终端阶段名（必须出现在 stages 中）
+  "stages": [                                 // 各阶段的唯一名称、图文件路径及文件字节 SHA-256
+    {"name": "alpha", "graph": "alpha.json", "sha256": "<64位十六进制>"},
+    {"name": "beta",  "graph": "beta.json",  "sha256": "..."},
+    {"name": "terminal", "graph": "terminal.json", "sha256": "..."}
+  ],
+  // 相对路径以清单所在目录为准；一个扫描节点只能有一个目标；
+  // 同一张中间表可以被多个扫描节点读取（各自一条绑定）。
+  "bindings": [
+    {"stage": "beta", "scan": "scanS",
+     "producer_stage": "alpha", "producer_table": "M"},
+    {"stage": "terminal", "scan": "scanN",
+     "producer_stage": "beta", "producer_table": "N"}
+  ]
+}
+```
+
+### 阶段图里怎样指出接缝
+
+各阶段内部沿用现有图格式，只新增一种**仅作输入**的贡献叶：
+
+```jsonc
+{"id": "该叶的局部ID", "type": "import", "scan": "本阶段扫描节点ID", "row": "读到的上游行ID"}
+```
+
+- 普通 `source` 叶仍然指向 `sources.json` 中的真实原行；`import` 叶不是来源登记，
+  它必须经清单绑定定位到上游表中**恰好对应**的已登记贡献根，不能按全局同名行猜测。
+- 各段可以独立编号：图名、加工 ID、表达式 ID、行 ID 在不同段重复都不是冲突；
+  结果图用 `阶段名::局部id` 作为全局 id，把不同阶段的同名节点分开，阶段名不得含 `::`。
+- 清单绑定的四种无法接通情形全部拒绝并指出位置：扫描未绑定、绑定找不到目标表、
+  行不在目标表、行虽列在表中却没有贡献根；另有文件字节 SHA-256 不符（同名图被替换）
+  与跨阶段依赖环检查。
+
+### 接好后的结果图
+
+- 结果仍只有终端阶段原来的表、行及其贡献根：**表 id 与行 id 不变**；从这些根继续追踪
+  可以穿过任意层已物化的中间表直至真实原行。
+- 上游的共同贡献（`all`）与充分替代（`any`）是实际被读取那一行的凭据：不择一保留、
+  不把两条凭据混成一条，也不为每条下游路径拷贝一棵上游树——同一 `(生产表, 行)` 的
+  上游子 DAG 在结果中只接一次，多处引用共享同一棵树。
+- 加工图也连通：读中间表的 scan 在结果中经一个新的**无权限含义**的 `stitch` 连接步骤
+  （`scan → stitch → 生产表节点`）找到实际生产该表的节点；不凭空增加投影/连接/聚合。
+  原有加工步骤及贡献边的 `via_node`/`via_row` 原样保留、带阶段前缀可回查；结果还留下
+  实际接续的阶段摘要（含每阶段图字节 SHA-256）与每条扫描绑定的生产表。
+- 路径操作许可由现有合同沿真实加工边判定：某原行在上游已聚合、又参加下游连接时，
+  结果中同时继承 `aggregate` 与 `join`，不会因中间表落盘而断成 `raw`。
+- 上游可以直接采用 `quarantine` 交付的图：仅剩一个健康选项的单边 `any` 仍接通那条
+  路径（结果图带 quarantine 标记），不找回已撤下的行或边。
+- 结果是标准 `graph.json`（不含 `import` 叶），只依赖它自己和原 `sources.json`，
+  可直接交给 `dq validate` / `dq plan` / `dq verify-plan`，不再需要任何阶段文件。
+
+### 发布前检查与失败语义
+
+发布前检查所读阶段的内容摘要、接缝绑定、跨阶段依赖环以及输入/输出图结构：任何一项
+不过都返回非零退出（输入契约/无法接通退出 10，IO 错误退出 2）并指出无法接通的位置；
+不修改任何输入、不覆盖已有输出，结果先写同级临时文件再一次性 `os.replace` 改名，
+读者看不到尚未生成完整的结果文件。
+
 ## 语义规则（本题的合成规则）
 
 - **全局唯一选项**：同一 (source_id, snapshot) 在一次交付中只选一个 option，
@@ -389,6 +467,7 @@ cd delivqual
 | `missing/`    | 表行缺少贡献表达式 ⇒ 缺失贡献 |
 | `build_totals/` | `build-totals` 小例：同一事实跨键、等额不同发票、零和部门、未匹配行；含 request 供 validate/plan 复跑 |
 | `quarantine/`  | `quarantine` 共用凭据小例：必需分支失效后撤下、共享失效原子被多条撤下引用、多条健全替代在不同请求下只有一条可用于 plan、单边 any 保留、已登记未使用的失效行 |
+| `stitch/`     | `stitch-lineage` 三阶段接续小例：两生产阶段复用同名局部 id，终端经中间阶段回读一行并在另一支路再次引用；含 sources/三阶段图/manifest/request |
 | `gen_large.py`| 运行时生成大例（不落地预置大文件） |
 
 ## 复跑入口
@@ -399,6 +478,11 @@ python3 -I tests/sat_selftest.py    # 求解器随机 CNF 对照（8000 用例�
 python3 tests/acceptance.py      # 验收套件（小例/篡改/随机/大例/预算）
 python3 -I tests/build_totals.py # build-totals 套件（暴力对照/证据展开/换序/非法行/线性压缩/原子交付）
 python3 -I tests/quarantine.py   # quarantine 套件（凭据复查/共享理由/线性规模/流式/原子交付）
+python3 -I tests/stitch.py       # stitch-lineage 套件（手写整体血缘对照/接缝错误/quarantine 上游/线性规模/原子交付）
+# stitch-lineage 一条可复跑命令（结果图可继续交给 validate/plan/verify-plan）：
+./dq stitch-lineage --sources examples/stitch/sources.json \
+                    --manifest examples/stitch/manifest.json \
+                    --out /tmp/stitched.json
 python3 examples/gen_large.py --out /tmp/large --sources 24 --rows 12000 --tables 4 --seed 7
 ```
 

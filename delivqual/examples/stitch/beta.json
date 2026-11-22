@@ -1,0 +1,32 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "stage-beta",
+  "nodes": [
+    {"node_id": "scanS", "op": "scan", "inputs": []},
+    {"node_id": "scanM2", "op": "scan", "inputs": []},
+    {"node_id": "pjS", "op": "project", "inputs": ["scanS"]},
+    {"node_id": "unionN", "op": "union_all", "inputs": ["pjS", "scanM2"]},
+    {"node_id": "dedN", "op": "deduplicate", "inputs": ["unionN"]}
+  ],
+  "tables": [
+    {"table_id": "N", "node_id": "dedN", "rows": ["N1"]}
+  ],
+  "contribs": [
+    {"id": "cS1", "type": "import", "scan": "scanS", "row": "M1"},
+    {"id": "cM2", "type": "import", "scan": "scanM2", "row": "M2"},
+    {"id": "cBr1", "type": "all", "edges": [
+      {"child": "cS1", "via_node": "pjS", "via_row": "N1-a"}
+    ]},
+    {"id": "cBr2", "type": "all", "edges": [
+      {"child": "cM2", "via_node": "scanM2", "via_row": "N1-b"}
+    ]},
+    {"id": "cN1", "type": "any", "edges": [
+      {"child": "cBr1", "via_node": "dedN", "via_row": "N1"},
+      {"child": "cBr2", "via_node": "dedN", "via_row": "N1"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "N", "row": "N1", "expr": "cN1"}
+  ]
+}

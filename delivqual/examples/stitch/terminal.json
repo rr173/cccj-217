@@ -1,0 +1,32 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "stage-terminal",
+  "nodes": [
+    {"node_id": "scanN", "op": "scan", "inputs": []},
+    {"node_id": "scanM2", "op": "scan", "inputs": []},
+    {"node_id": "joinZ", "op": "join", "inputs": ["scanN", "scanM2"]},
+    {"node_id": "scanW", "op": "scan", "inputs": []},
+    {"node_id": "pjW", "op": "project", "inputs": ["scanW"]}
+  ],
+  "tables": [
+    {"table_id": "Z", "node_id": "joinZ", "rows": ["z1"]},
+    {"table_id": "W", "node_id": "pjW", "rows": ["w1"]}
+  ],
+  "contribs": [
+    {"id": "cN", "type": "import", "scan": "scanN", "row": "N1"},
+    {"id": "cM", "type": "import", "scan": "scanM2", "row": "M2"},
+    {"id": "cZ", "type": "all", "edges": [
+      {"child": "cN", "via_node": "joinZ", "via_row": "z1#L"},
+      {"child": "cM", "via_node": "joinZ", "via_row": "z1#R"}
+    ]},
+    {"id": "cW", "type": "import", "scan": "scanW", "row": "M1"},
+    {"id": "cW1", "type": "all", "edges": [
+      {"child": "cW", "via_node": "pjW", "via_row": "w1"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "Z", "row": "z1", "expr": "cZ"},
+    {"table": "W", "row": "w1", "expr": "cW1"}
+  ]
+}

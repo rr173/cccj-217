@@ -1,0 +1,36 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "stage-alpha",
+  "nodes": [
+    {"node_id": "scanS", "op": "scan", "inputs": []},
+    {"node_id": "scanT", "op": "scan", "inputs": []},
+    {"node_id": "aggS", "op": "aggregate", "inputs": ["scanS"]},
+    {"node_id": "pjS", "op": "project", "inputs": ["aggS"]},
+    {"node_id": "unionM", "op": "union_all", "inputs": ["pjS", "scanT"]}
+  ],
+  "tables": [
+    {"table_id": "M", "node_id": "unionM", "rows": ["M1", "M2"]}
+  ],
+  "contribs": [
+    {"id": "cS1", "type": "source", "source_id": "S", "snapshot": "s1", "row_id": "s-r1"},
+    {"id": "cS2", "type": "source", "source_id": "S", "snapshot": "s1", "row_id": "s-r2"},
+    {"id": "cT1", "type": "source", "source_id": "T", "snapshot": "t1", "row_id": "t-r1"},
+    {"id": "cAgg", "type": "all", "edges": [
+      {"child": "cS1", "via_node": "aggS", "via_row": "a-1"}
+    ]},
+    {"id": "cPjS", "type": "all", "edges": [
+      {"child": "cAgg", "via_node": "pjS", "via_row": "p-1"}
+    ]},
+    {"id": "cN1", "type": "all", "edges": [
+      {"child": "cPjS", "via_node": "unionM", "via_row": "M1"}
+    ]},
+    {"id": "cT1w", "type": "all", "edges": [
+      {"child": "cT1", "via_node": "unionM", "via_row": "M2"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "M", "row": "M1", "expr": "cN1"},
+    {"table": "M", "row": "M2", "expr": "cT1w"}
+  ]
+}

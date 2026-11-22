@@ -14,8 +14,11 @@ from dataclasses import dataclass, field
 # 选项中允许声明的操作权限词汇
 PERMISSION_OPS = ("raw", "aggregate", "join", "union", "project")
 # 加工图节点 op 词汇
-GRAPH_OPS = ("scan", "union_all", "join", "project", "aggregate", "deduplicate")
-# 加工 op -> 需要的操作权限（scan / deduplicate 不新增权限）
+# stitch 是 dq stitch-lineage 用于接续物化阶段的连接步骤：无权限含义，
+# 不新增任何操作许可（EDGE_OP_REQUIREMENT 中为 None），只表达
+# “本阶段的 scan 读取的是哪个生产阶段的哪张输出表”。
+GRAPH_OPS = ("scan", "union_all", "join", "project", "aggregate", "deduplicate", "stitch")
+# 加工 op -> 需要的操作权限（scan / deduplicate / stitch 不新增权限）
 EDGE_OP_REQUIREMENT = {
     "join": "join",
     "union_all": "union",
@@ -23,15 +26,18 @@ EDGE_OP_REQUIREMENT = {
     "aggregate": "aggregate",
     "scan": None,
     "deduplicate": None,
+    "stitch": None,
 }
 # 加工节点输入元数约束
+# scan 在阶段图中没有输入；接续后的图里允许至多一个 stitch 输入（见 validate_graph 的后置检查）
 ARITY = {
-    "scan": (0, 0),
+    "scan": (0, 1),
     "project": (1, 1),
     "aggregate": (1, 1),
     "deduplicate": (1, 1),
     "join": (2, None),
     "union_all": (2, None),
+    "stitch": (1, 1),
 }
 
 
@@ -84,9 +90,10 @@ class CEdge:
 @dataclass
 class CNode:
     cid: str
-    type: str                  # source / all / any
+    type: str                  # source / all / any / import（import 仅阶段图输入叶）
     source_key: tuple = None   # type == source
-    row_id: str = None
+    row_id: str = None         # source: 原行 id；import: 读到的上游表行 id
+    scan: str = None           # type == import: 本阶段扫描节点 id
     edges: tuple = ()          # [CEdge] for all/any
 
 
@@ -259,8 +266,13 @@ def validate_sources(obj):
 # ---------------------------------------------------------------------------
 # graph.json
 
-def validate_graph(obj, sources: Sources):
-    """返回 (Graph|None, errors, warnings)。"""
+def validate_graph(obj, sources: Sources, allow_import=False):
+    """返回 (Graph|None, errors, warnings)。
+
+    allow_import=True 时接受 stitch-lineage 阶段图专用的输入叶
+    {"type": "import", "id", "scan", "row"}（仅作输入、必须由清单绑定解析，
+    普通交付图与接续结果图都不允许出现它）；并允许 scan 带一个 stitch 输入。
+    """
     errors, warnings = [], []
     if not isinstance(obj, dict) or obj.get("kind") != "graph":
         return None, ["顶层必须是 {\"kind\": \"graph\", ...}"], warnings
@@ -316,6 +328,12 @@ def validate_graph(obj, sources: Sources):
         for inp in n.inputs:
             if inp not in nodes:
                 errors.append(f"加工节点 {n.node_id}: 输入 {inp} 不存在")
+        # scan 只允许经 stitch 接续到生产表节点；stitch 只能作为 scan 的输入
+        if n.op == "scan" and any(nodes[inp].op != "stitch" for inp in n.inputs if inp in nodes):
+            errors.append(f"加工节点 {n.node_id}: scan 的输入只能是 stitch 接续节点，得到 {n.inputs}")
+        if n.op == "stitch" and not any(nodes[i].op == "scan" and n.node_id in nodes[i].inputs
+                                        for i in nodes):
+            errors.append(f"加工节点 {n.node_id}: stitch 只能作为 scan 的唯一接续输入")
     _check_acyclic(set(nodes), lambda x: [i for i in nodes[x].inputs if i in nodes], "加工图", errors)
 
     # ---- 输出表 ----
@@ -369,6 +387,27 @@ def validate_graph(obj, sources: Sources):
                 errors.append(f"{cw}: 原子引用源 {key} 未登记的原行 {row_id!r}")
                 continue
             contribs[cid] = CNode(cid=cid, type="source", source_key=key, row_id=row_id)
+        elif ctype == "import":
+            if not allow_import:
+                errors.append(
+                    f"{cw}: import 输入叶只允许出现在 stitch-lineage 的阶段图中，"
+                    "普通交付图不得登记中间表来源（中间表不是新的原始来源）")
+                continue
+            scan_id, up_row = c.get("scan"), c.get("row")
+            if not _is_str(scan_id) or not _is_str(up_row) or up_row == "":
+                errors.append(f"{cw}: import 叶必须含字符串字段 scan 与非空 row")
+                continue
+            if scan_id not in nodes:
+                errors.append(f"{cw}: import 叶引用不存在的扫描节点 {scan_id!r}")
+                continue
+            if nodes[scan_id].op != "scan":
+                errors.append(f"{cw}: import 叶的 scan 必须指向 op=scan 的节点，"
+                              f"实际 {scan_id!r} 是 {nodes[scan_id].op}")
+                continue
+            if set(c) - {"id", "type", "scan", "row"}:
+                errors.append(f"{cw}: import 叶只能含 id/type/scan/row 四个字段")
+                continue
+            contribs[cid] = CNode(cid=cid, type="import", scan=scan_id, row_id=up_row)
         elif ctype in ("all", "any"):
             raw_edges = c.get("edges")
             if not isinstance(raw_edges, list):
@@ -422,7 +461,8 @@ def validate_graph(obj, sources: Sources):
             contribs[cid] = CNode(cid=cid, type=ctype, edges=tuple(edges))
         else:
             errors.append(
-                f"{cw}: 未知贡献节点类型 {ctype!r}；只允许 source/all/any。"
+                f"{cw}: 未知贡献节点类型 {ctype!r}；只允许 source/all/any"
+                + ("（阶段图另允许 import 输入叶）" if allow_import else "") + "。"
                 "注意：不存在“已脱敏”之类的免除机制，不可信表达式不能免除来源。"
             )
 

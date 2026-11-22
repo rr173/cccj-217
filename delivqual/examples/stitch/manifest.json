@@ -1,0 +1,54 @@
+{
+  "kind": "stitch-manifest",
+  "version": 1,
+  "terminal": "terminal",
+  "stages": [
+    {
+      "name": "alpha",
+      "graph": "alpha.json",
+      "sha256": "46f2cee0bba83d0e300973de83d84413a6ce5d120dca80323d8e83878448f35b"
+    },
+    {
+      "name": "beta",
+      "graph": "beta.json",
+      "sha256": "a6faca22ae4182c7fee871b562463289ad587594935e9f4cca359466c78cb82b"
+    },
+    {
+      "name": "terminal",
+      "graph": "terminal.json",
+      "sha256": "5c75908b769d67c8d25d56e009592a4aa290720b9971b0dd50b50390c31ace38"
+    }
+  ],
+  "bindings": [
+    {
+      "stage": "beta",
+      "scan": "scanS",
+      "producer_stage": "alpha",
+      "producer_table": "M"
+    },
+    {
+      "stage": "beta",
+      "scan": "scanM2",
+      "producer_stage": "alpha",
+      "producer_table": "M"
+    },
+    {
+      "stage": "terminal",
+      "scan": "scanN",
+      "producer_stage": "beta",
+      "producer_table": "N"
+    },
+    {
+      "stage": "terminal",
+      "scan": "scanM2",
+      "producer_stage": "alpha",
+      "producer_table": "M"
+    },
+    {
+      "stage": "terminal",
+      "scan": "scanW",
+      "producer_stage": "alpha",
+      "producer_table": "M"
+    }
+  ]
+}
