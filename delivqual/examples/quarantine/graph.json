@@ -1,0 +1,108 @@
+{
+  "kind": "graph",
+  "version": 1,
+  "graph_id": "quarantine-drill-v1",
+  "nodes": [
+    {"node_id": "scanS", "op": "scan", "inputs": []},
+    {"node_id": "scanT", "op": "scan", "inputs": []},
+    {"node_id": "scanU", "op": "scan", "inputs": []},
+    {"node_id": "scanV", "op": "scan", "inputs": []},
+    {"node_id": "scanJ", "op": "scan", "inputs": []},
+    {"node_id": "scanW", "op": "scan", "inputs": []},
+    {"node_id": "pjS", "op": "project", "inputs": ["scanS"]},
+    {"node_id": "jnJ", "op": "join", "inputs": ["scanJ", "scanT"]},
+    {"node_id": "aggW", "op": "aggregate", "inputs": ["scanW"]},
+    {"node_id": "uniR", "op": "union_all", "inputs": ["pjS", "jnJ", "aggW"]},
+    {"node_id": "dedR", "op": "deduplicate", "inputs": ["uniR"]},
+    {"node_id": "jnU", "op": "join", "inputs": ["scanV", "scanU"]},
+    {"node_id": "uniU", "op": "union_all", "inputs": ["scanU", "scanT"]},
+    {"node_id": "dedA", "op": "deduplicate", "inputs": ["uniU"]}
+  ],
+  "tables": [
+    {"table_id": "R", "node_id": "dedR", "rows": ["R1", "R2", "R3", "R4", "R5"]},
+    {"table_id": "Q", "node_id": "jnU", "rows": ["Q1", "Q2"]}
+  ],
+  "contribs": [
+    {"id": "cS1", "type": "source", "source_id": "S", "snapshot": "s1", "row_id": "s-r1"},
+    {"id": "cS2", "type": "source", "source_id": "S", "snapshot": "s1", "row_id": "s-r2"},
+    {"id": "cT1", "type": "source", "source_id": "T", "snapshot": "t1", "row_id": "t-r1"},
+    {"id": "cU1", "type": "source", "source_id": "U", "snapshot": "u1", "row_id": "u-r1"},
+    {"id": "cU2", "type": "source", "source_id": "U", "snapshot": "u1", "row_id": "u-r2"},
+    {"id": "cU3", "type": "source", "source_id": "U", "snapshot": "u1", "row_id": "u-r3"},
+    {"id": "cV1", "type": "source", "source_id": "V", "snapshot": "v1", "row_id": "v-r1"},
+    {"id": "cJ1", "type": "source", "source_id": "J", "snapshot": "j1", "row_id": "j-r1"},
+    {"id": "cW1", "type": "source", "source_id": "W", "snapshot": "w1", "row_id": "w-r1"},
+
+    {"id": "cAll1", "type": "all", "edges": [
+      {"child": "cS1", "via_node": "scanS", "via_row": "s-r1"}
+    ]},
+    {"id": "cAll2", "type": "all", "edges": [
+      {"child": "cAll1", "via_node": "pjS", "via_row": "p-1"}
+    ]},
+    {"id": "cR1", "type": "all", "edges": [
+      {"child": "cAll2", "via_node": "dedR", "via_row": "R1"}
+    ]},
+    {"id": "cAll3", "type": "all", "edges": [
+      {"child": "cS1", "via_node": "scanS", "via_row": "s-r1-shared"}
+    ]},
+    {"id": "cR4", "type": "all", "edges": [
+      {"child": "cAll3", "via_node": "dedR", "via_row": "R4"}
+    ]},
+
+    {"id": "cAlt1a", "type": "all", "edges": [
+      {"child": "cS2", "via_node": "scanS", "via_row": "s-r2"}
+    ]},
+    {"id": "cAlt1", "type": "all", "edges": [
+      {"child": "cAlt1a", "via_node": "pjS", "via_row": "p-2"}
+    ]},
+    {"id": "cAlt2", "type": "all", "edges": [
+      {"child": "cJ1", "via_node": "jnJ", "via_row": "j#L"},
+      {"child": "cT1", "via_node": "jnJ", "via_row": "j#R"}
+    ]},
+    {"id": "cAlt3a", "type": "all", "edges": [
+      {"child": "cW1", "via_node": "scanW", "via_row": "w-r1"}
+    ]},
+    {"id": "cAlt3", "type": "all", "edges": [
+      {"child": "cAlt3a", "via_node": "aggW", "via_row": "aw-1"}
+    ]},
+    {"id": "cR2", "type": "any", "edges": [
+      {"child": "cAlt1", "via_node": "dedR", "via_row": "R2"},
+      {"child": "cAlt2", "via_node": "dedR", "via_row": "R2"},
+      {"child": "cAlt3", "via_node": "dedR", "via_row": "R2"}
+    ]},
+
+    {"id": "cR3", "type": "all", "edges": [
+      {"child": "cU1", "via_node": "scanU", "via_row": "u-r1"}
+    ]},
+
+    {"id": "cS2snap", "type": "source", "source_id": "S", "snapshot": "s2", "row_id": "s-r1"},
+    {"id": "cR5", "type": "all", "edges": [
+      {"child": "cS2snap", "via_node": "scanS", "via_row": "s2-s-r1"}
+    ]},
+
+    {"id": "cQ1", "type": "all", "edges": [
+      {"child": "cV1", "via_node": "jnU", "via_row": "q#L"},
+      {"child": "cU2", "via_node": "jnU", "via_row": "q#R"}
+    ]},
+
+    {"id": "cD1", "type": "all", "edges": [
+      {"child": "cU3", "via_node": "uniU", "via_row": "u-r3-u"}
+    ]},
+    {"id": "cAnyDead", "type": "all", "edges": [
+      {"child": "cS1", "via_node": "uniU", "via_row": "s-r1-dead"}
+    ]},
+    {"id": "cAnyQ", "type": "any", "edges": [
+      {"child": "cD1", "via_node": "dedA", "via_row": "Q2a"},
+      {"child": "cAnyDead", "via_node": "dedA", "via_row": "Q2b"}
+    ]}
+  ],
+  "outputs": [
+    {"table": "R", "row": "R1", "expr": "cR1"},
+    {"table": "R", "row": "R2", "expr": "cR2"},
+    {"table": "R", "row": "R3", "expr": "cR3"},
+    {"table": "R", "row": "R4", "expr": "cR4"},
+    {"table": "R", "row": "R5", "expr": "cR5"},
+    {"table": "Q", "row": "Q1", "expr": "cQ1"},
+    {"table": "Q", "row": "Q2", "expr": "cAnyQ"}
+  ]
+}

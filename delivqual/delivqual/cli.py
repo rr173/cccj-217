@@ -7,6 +7,7 @@
   12 unknown（预算耗尽）
   13 verify-plan 拒绝
   2  用法或 IO 错误
+  （quarantine 同此约定：输入契约不符退出 10，IO 错误退出 2，成功退出 0）
 """
 from __future__ import annotations
 
@@ -147,6 +148,33 @@ def cmd_build_totals(args):
     return 0
 
 
+def cmd_quarantine(args):
+    """隔离交付包：按失效原行清单撤下失去充分凭据的记录，原子发布可替换旧包的副本。"""
+    from .quarantine import QuarantineError, quarantine
+    try:
+        sources_obj = load_json(args.sources)
+        graph_obj = load_json(args.graph)
+        invalidations_obj = load_json(args.invalidations)
+    except InputError as e:
+        print(f"输入错误: {e}", file=sys.stderr)
+        return 2
+    try:
+        out_dir, summary = quarantine(sources_obj, graph_obj, args.records,
+                                      invalidations_obj, args.out_dir)
+    except QuarantineError as e:
+        print(json.dumps({"target": "quarantine", "valid": False, "errors": [str(e)]},
+                         ensure_ascii=False, indent=2))
+        return 10
+    except InputError as e:
+        print(f"输入错误: {e}", file=sys.stderr)
+        return 2
+    except OSError as e:
+        print(f"写入失败: {e}", file=sys.stderr)
+        return 2
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="delivqual",
@@ -198,6 +226,18 @@ def main(argv=None):
     p5.add_argument("--out-dir", required=True, help="目标输出目录（必须此前不存在）")
     p5.add_argument("--graph-id", help="生成图的 graph_id（缺省按绑定确定性生成）")
     p5.set_defaults(fn=cmd_build_totals)
+
+    p6 = sub.add_parser(
+        "quarantine",
+        help="按失效原行清单隔离交付包：撤下失去充分凭据的记录，发布 rows.jsonl/graph.json/withdrawals.json")
+    p6.add_argument("--sources", required=True, help="原 sources.json（只读，不修改）")
+    p6.add_argument("--graph", required=True, help="原 graph.json（只读）")
+    p6.add_argument("--records", required=True,
+                    help="交付记录 JSONL，每行 {table, row, data}，与图输出行一一对应")
+    p6.add_argument("--invalidations", required=True,
+                    help="失效原行清单 JSON 数组，元素 {source_id, snapshot, row_id}")
+    p6.add_argument("--out-dir", required=True, help="目标输出目录（必须此前不存在）")
+    p6.set_defaults(fn=cmd_quarantine)
 
     args = ap.parse_args(argv)
     return args.fn(args)

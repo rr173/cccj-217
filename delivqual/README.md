@@ -38,6 +38,7 @@ cd delivqual
 | `explain-row`| 解释某一输出行的推导与义务 | 0 |
 | `verify-plan`| 只根据原资料与 plan 独立核实全部合同 | 0 有效 / 13 拒绝 / 12 unknown |
 | `build-totals`| 从两份明细生成部门汇总表与匹配的行级贡献图 | 0 成功 / 10 输入不符 / 2 IO 错误 |
+| `quarantine` | 按失效原行清单隔离交付包：撤下失去充分凭据的记录 | 0 成功 / 10 输入不符 / 2 IO 错误 |
 
 `plan` 支持 `--budget-seconds S` 与 `--budget-conflicts N`：预算耗尽返回
 `unknown`（退出码 12），**绝不谎报可行或不可行**。
@@ -199,6 +200,104 @@ cd delivqual
   连接贡献节点数 = 键数而非物理配对数；30 万物理配对在测试中压缩为 6000 输入行
   量级的图，同时仍可展开回全部 30 万个真实配对。大样例运行时生成，不提交大数据。
 
+## quarantine：把已归档交付包隔离成可替换旧包的副本
+
+供应方确认部分**原始记录**有误后，数据管理员需要一份隔离副本：数值仍有完整凭据的
+记录原样留下，失去充分凭据的记录撤下，并向收件人说明每条撤下的可复查理由。这不是
+重算报表——一个总额原来含三笔事实、其中一笔无可靠证据时，撤下的是整条记录而不是
+减掉那笔后沿用原行 ID。
+
+```sh
+./dq quarantine \
+  --sources examples/quarantine/sources.json        `# 原源登记（只读，不修改、不作授权决定）` \
+  --graph   examples/quarantine/graph.json          `# 原贡献图（只读）` \
+  --records examples/quarantine/records.jsonl       `# 交付记录，每行 {table, row, data}` \
+  --invalidations examples/quarantine/invalidations.json `# 失效原行清单（JSON 数组）` \
+  --out-dir /tmp/quarantine-out     # 必须此前不存在；成功后目录才可见
+# ⇒ /tmp/quarantine-out/{rows.jsonl, graph.json, withdrawals.json}
+```
+
+### 输入契约
+
+- **交付记录 JSONL**：每行恰好是 `{"table", "row", "data"}`，前两项是与图对应的字符串，
+  `data` 是已有业务内容（本工具不解释其中字段）。记录与原图 `outputs` 所列
+  `(table, row)` **一一对应**：缺、多、重复（哪怕出现在文件最后一行）都是输入错误；
+  乱序允许，只要集合相等且不重复。每条图列表行都必须有贡献根，包括最终会被撤下的记录。
+- **失效清单**：`[{"source_id", "snapshot", "row_id"}, ...]`，以三项原值共同定位。
+  重复项视为同一次失效；引用未登记源快照/原行是输入错误；已登记但未参与本次交付的
+  失效行不影响结果（计入 stats 的 `invalidations_unused`）。
+
+### 隔离判定（结构性凭据规则，不重算业务值）
+
+- `source` 叶子命中失效三元组即失效；
+- **`all`（共同贡献）**：任一必需分支失效即整节点失效——少一条都不能成立；
+- **`any`（充分替代）**：只有全部替代边都失效才失效。
+
+记录行只要还存在至少一条**完全不使用失效原行**的完整推导，就按原输入顺序、原记录
+内容（原 `(table, row)` 与 `data`）保留在 `rows.jsonl`；否则从副本与图的表行中一起
+撤下。
+
+### 隔离图（可继续交给 `dq validate` / `dq plan`）
+
+- 贡献表达式表达**恰好全部**仍然健全的推导，而不是每行只挑一条当前可用路径：
+  另一条健全路径可能是以后资格核验唯一可用的选择，故 `all`/`any` 的存活边全部保留。
+- 存活边保留原加工步骤（`via_node`）与 `via_row`；只剩一条替代的 `any` 节点**不**被
+  直接接到更上层（仍挂在原 `deduplicate` 节点上），避免丢失路径。`validate` 对带
+  `quarantine` 标记的图允许这种单边 `any`，普通图仍要求 ≥2 条替代边。
+- 结果中不留从保留记录到不了的贡献节点；加工节点与**表定义全部保留**（即使某表
+  所有行都撤下，表仍以空行清单存在）。
+- 新图带 `quarantine` 标记（含原图/失效清单哈希与撤下身份），`graph_id` 与原图不同；
+  保留记录仍用原有 `(table, row)` 与原贡献根 id。
+
+### withdrawals.json：收件人可独立复查的撤下凭据
+
+```jsonc
+{
+  "kind": "quarantine-withdrawals", "version": 1,
+  "binding": {                       // 绑定原图、源登记与失效清单的内容哈希
+    "origin_graph_sha256": "...", "sources_sha256": "...",
+    "invalidation_sha256": "..." },
+  "invalidations": [ /* 去重排序后的失效三元组 */ ],
+  "invalidation_entries_input": 3,  // 清单原始条目数（重复项也计数）
+  "withdrawals": [                  // 每条撤下记录及其原贡献根
+    {"table": "R", "row": "R1", "origin_root": "cR1", "reason": "r-all-..."} ],
+  "reasons": [                      // 共享的理由 DAG（按 id 去重，不逐行复制证据树）
+    {"id": "r-src-...", "kind": "invalidated_source",
+     "contrib_id": "cS1", "source_id": "S", "snapshot": "s1", "row_id": "s-r1"},
+    {"id": "r-all-...", "kind": "required_branch_failed", "contrib_id": "cR1",
+     "failed_edge": {"child": "cS1", "via_node": "scanS", "via_row": "R1",
+                     "reason": "r-src-..."}},
+    {"id": "r-any-...", "kind": "all_alternatives_failed", "contrib_id": "cR2",
+     "edges": [ {"child": "...", "via_node": "dedR", "via_row": "R2", "reason": "..."}, ... ]}
+  ]
+}
+```
+
+**只用原图 + 失效清单的复查方法**（测试套件中的独立复查器就是这样做的）：
+
+1. 核对 `binding` 三个哈希与手上的原图、sources、清单（去重排序）一致；
+2. 对原图独立做一次活性求值（source 命中清单即死；`all` 任一分支死则死；
+   `any` 全死才死），撤下集合必须与 `withdrawals` 完全一致；
+3. 沿每条撤下记录的 `reason` 链走原图的**具体边**：
+   - `invalidated_source` 的三元组必须确实在失效清单中；
+   - `required_branch_failed`（共同贡献）指出一条已失效的必需边，该边必须是原图真实边；
+   - `all_alternatives_failed`（充分替代）必须**逐条**覆盖原图该节点的每条替代边并各附理由。
+4. 理由只允许引用从撤下根可达的失效节点（不附与撤下无关的节点）；同一失效贡献节点
+   在所有撤下记录间共享同一个理由 id，不按输出行重复复制。没有撤下记录时仍交付
+   `withdrawals: []`、`reasons: []` 的空凭据。
+
+### 流式、规模与原子交付
+
+- 交付记录可能远大于血缘图：处理时逐行校验、逐行复制载荷，内存只索引记录身份
+  （`(table, row)` 字符串），不累积整份 `data` 载荷；测试用 30MB 载荷验证峰值内存
+  增长远小于载荷总量。
+- 活性求值是贡献 DAG 上的一次线性扫描，共享节点只算一次；不枚举任何可能的完整
+  推导，理由 DAG 也不按输出重复遍历同一共享子图（运行时样例中 800 条撤下记录共享
+  同一个根理由，理由节点数与输出数无关）。
+- 目标目录必须此前不存在；先写同级临时目录，三份文件都成功后一次性 `os.replace`
+  改名。任何输入不一致（含文件最后一行才发现的重复/无效记录）或写入失败都清理临时
+  目录、绝不发布残缺副本，也不修改任何原文件或已有目标。
+
 ## 语义规则（本题的合成规则）
 
 - **全局唯一选项**：同一 (source_id, snapshot) 在一次交付中只选一个 option，
@@ -289,15 +388,17 @@ cd delivqual
 | `mismatch/`   | 受众不符、时间不符（分别不可行），以及可行对照 |
 | `missing/`    | 表行缺少贡献表达式 ⇒ 缺失贡献 |
 | `build_totals/` | `build-totals` 小例：同一事实跨键、等额不同发票、零和部门、未匹配行；含 request 供 validate/plan 复跑 |
+| `quarantine/`  | `quarantine` 共用凭据小例：必需分支失效后撤下、共享失效原子被多条撤下引用、多条健全替代在不同请求下只有一条可用于 plan、单边 any 保留、已登记未使用的失效行 |
 | `gen_large.py`| 运行时生成大例（不落地预置大文件） |
 
 ## 复跑入口
 
 ```sh
-./run_all.sh                 # 全部：校验样例 + 主演练 + 验收套件 + build-totals + 大例基准
-python3 tests/sat_selftest.py    # 求解器随机 CNF 对照（8000 用例）
+./run_all.sh                 # 全部：校验样例 + 主演练 + 验收套件 + build-totals + quarantine + 大例基准
+python3 -I tests/sat_selftest.py    # 求解器随机 CNF 对照（8000 用例）
 python3 tests/acceptance.py      # 验收套件（小例/篡改/随机/大例/预算）
 python3 -I tests/build_totals.py # build-totals 套件（暴力对照/证据展开/换序/非法行/线性压缩/原子交付）
+python3 -I tests/quarantine.py   # quarantine 套件（凭据复查/共享理由/线性规模/流式/原子交付）
 python3 examples/gen_large.py --out /tmp/large --sources 24 --rows 12000 --tables 4 --seed 7
 ```
 

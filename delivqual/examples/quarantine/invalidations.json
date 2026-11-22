@@ -1,0 +1,5 @@
+[
+  {"source_id": "S", "snapshot": "s1", "row_id": "s-r1"},
+  {"source_id": "S", "snapshot": "s1", "row_id": "s-r1"},
+  {"source_id": "S", "snapshot": "s1", "row_id": "s-unused"}
+]

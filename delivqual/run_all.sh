@@ -64,6 +64,27 @@ $DQ verify-plan --sources examples/build_totals/sources.json --graph "$BT/graph.
   && echo "  生成图 plan + verify-plan: valid"
 cat "$BT/totals.jsonl" | sed 's/^/  /'
 
+echo "========== 4c. quarantine 验收（隔离副本/撤下凭据/共享理由/线性规模） =========="
+python3 -I tests/quarantine.py
+# 端到端：从共用凭据小例生成隔离副本，再交给原有 validate/plan/verify-plan
+Q=$OUT/quarantine
+rm -rf "$Q"
+$DQ quarantine \
+  --sources examples/quarantine/sources.json \
+  --graph examples/quarantine/graph.json \
+  --records examples/quarantine/records.jsonl \
+  --invalidations examples/quarantine/invalidations.json \
+  --out-dir "$Q"
+$DQ validate --sources examples/quarantine/sources.json --graph "$Q/graph.json" \
+  --request examples/quarantine/req_a.json > /dev/null && echo "  隔离图 validate: 通过"
+$DQ plan --sources examples/quarantine/sources.json --graph "$Q/graph.json" \
+  --request examples/quarantine/req_a.json --out "$Q/plan_a.json" >/dev/null
+$DQ verify-plan --sources examples/quarantine/sources.json --graph "$Q/graph.json" \
+  --request examples/quarantine/req_a.json --plan "$Q/plan_a.json" >/dev/null \
+  && echo "  隔离图 plan + verify-plan: valid"
+echo "  withdrawals.json 撤下条目:"
+python3 -c "import json; w=json.load(open('$Q/withdrawals.json')); [print('   撤下', x['table'], x['row'], '根', x['origin_root']) for x in w['withdrawals']]"
+
 echo "========== 5. 大例基准（运行时生成） =========="
 python3 examples/gen_large.py --out /tmp/large --sources 24 --rows 12000 --tables 4 --seed 7
 $DQ plan --sources /tmp/large/sources.json --graph /tmp/large/graph.json --request /tmp/large/request.json --out $OUT/large_plan.json >/dev/null

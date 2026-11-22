@@ -1,0 +1,12 @@
+{
+  "kind": "request",
+  "version": 1,
+  "request_id": "req-quarantine-a",
+  "time": 100,
+  "audience": "dept-a",
+  "geo": "cn",
+  "tables": [
+    {"table_id": "R", "classification": "report"},
+    {"table_id": "Q", "classification": "report"}
+  ]
+}

@@ -1,0 +1,7 @@
+{"table": "R", "row": "R1", "data": {"invoice": "INV-R1", "cents": 101, "note": "依赖共享失效原行 s-r1 的必需分支"}}
+{"table": "R", "row": "R2", "data": {"invoice": "INV-R2", "cents": 202, "note": "三条凭据健全的替代；dept-a 请求下只有 project 支可用于 plan，join 支因选项缺 join 权限恒不可行"}}
+{"table": "R", "row": "R3", "data": {"invoice": "INV-R3", "cents": 303, "note": "完全独立于 S 的记录"}}
+{"table": "R", "row": "R4", "data": {"invoice": "INV-R4", "cents": 404, "note": "与 R1 共享同一失效原子 cS1"}}
+{"table": "R", "row": "R5", "data": {"invoice": "INV-R5", "cents": 505, "note": "用 S/s2 的 s-r1：与失效的 S/s1/s-r1 同名但快照不同，不应误伤"}}
+{"table": "Q", "row": "Q1", "data": {"invoice": "INV-Q1", "cents": 505, "note": "S2 与 U2 的共同贡献"}}
+{"table": "Q", "row": "Q2", "data": {"invoice": "INV-Q2", "cents": 606, "note": "替代之一失效但仍有健全替代，any 撤下后只剩一条边"}}

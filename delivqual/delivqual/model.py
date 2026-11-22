@@ -269,6 +269,24 @@ def validate_graph(obj, sources: Sources):
         errors.append("graph_id 必须是字符串")
         graph_id = "?"
 
+    # 隔离副本标记：dq quarantine 产出的图中，充分替代 any 在其余替代全部被撤下后
+    # 可以只剩一条边（边仍全部指向同一个 deduplicate 节点，路径与 via_row 不重写）。
+    quarantine_marker = obj.get("quarantine")
+    is_quarantine = False
+    if quarantine_marker is not None:
+        if not isinstance(quarantine_marker, dict):
+            errors.append("quarantine 标记必须是对象")
+        elif not isinstance(quarantine_marker.get("marker_version"), int) \
+                or isinstance(quarantine_marker.get("marker_version"), bool) \
+                or not _is_str(quarantine_marker.get("origin_graph_id")) \
+                or not _is_str(quarantine_marker.get("origin_graph_sha256")) \
+                or not _is_str(quarantine_marker.get("invalidation_sha256")):
+            errors.append(
+                "quarantine 标记必须含整数 marker_version 与字符串 origin_graph_id/"
+                "origin_graph_sha256/invalidation_sha256")
+        else:
+            is_quarantine = True
+
     # ---- 加工节点 ----
     nodes = {}
     for ni, n in enumerate(obj.get("nodes") or []):
@@ -377,8 +395,12 @@ def validate_graph(obj, sources: Sources):
                     edges.append(CEdge(parent=cid, child=child, via_node=via_node, via_row=via_row))
             # 语义约束：any 只能来自显式 deduplicate；all 的多条边必须同属一个 join/aggregate
             if ctype == "any":
-                if len(edges) < 2:
-                    errors.append(f"{cw}: any 节点至少需要 2 条替代边")
+                # 普通图要求 ≥2 条替代边；隔离副本允许撤下后只剩 1 条（标记已在上方核验）
+                min_edges = 1 if is_quarantine else 2
+                if len(edges) < min_edges:
+                    errors.append(
+                        f"{cw}: any 节点至少需要 {min_edges} 条替代边"
+                        + ("（隔离图中撤下后允许只剩 1 条）" if is_quarantine else ""))
                 via_ops = {nodes[e.via_node].op for e in edges if e.via_node in nodes}
                 via_ids = {e.via_node for e in edges}
                 if via_ops != {"deduplicate"} or len(via_ids) != 1:

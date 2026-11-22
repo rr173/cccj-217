@@ -1,0 +1,125 @@
+{
+  "kind": "sources",
+  "version": 1,
+  "sources": [
+    {
+      "source_id": "S",
+      "snapshot": "s1",
+      "rows": ["s-r1", "s-r2", "s-unused"],
+      "options": [
+        {
+          "option_id": "W",
+          "ops": ["raw", "project"],
+          "audiences": ["dept-a", "dept-b"],
+          "geos": ["cn"],
+          "time": [0, 1000],
+          "notices": ["n-SW"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "S",
+      "snapshot": "s2",
+      "rows": ["s-r1"],
+      "options": [
+        {
+          "option_id": "W",
+          "ops": ["raw"],
+          "audiences": ["dept-a", "dept-b"],
+          "geos": ["cn"],
+          "time": [0, 1000],
+          "notices": ["n-SW2"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "T",
+      "snapshot": "t1",
+      "rows": ["t-r1", "t-r2"],
+      "options": [
+        {
+          "option_id": "A",
+          "ops": ["raw"],
+          "audiences": ["dept-a", "dept-b"],
+          "geos": ["cn"],
+          "time": [0, 1000],
+          "notices": ["n-TA"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "U",
+      "snapshot": "u1",
+      "rows": ["u-r1", "u-r2", "u-r3"],
+      "options": [
+        {
+          "option_id": "O",
+          "ops": ["raw", "aggregate", "join", "union", "project"],
+          "audiences": ["dept-a", "dept-b"],
+          "geos": ["cn"],
+          "time": [0, 1000],
+          "notices": ["n-UO"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "V",
+      "snapshot": "v1",
+      "rows": ["v-r1"],
+      "options": [
+        {
+          "option_id": "O",
+          "ops": ["raw", "join"],
+          "audiences": ["dept-a", "dept-b"],
+          "geos": ["cn"],
+          "time": [0, 1000],
+          "notices": ["n-VO"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "J",
+      "snapshot": "j1",
+      "rows": ["j-r1"],
+      "options": [
+        {
+          "option_id": "O",
+          "ops": ["raw", "join", "project"],
+          "audiences": ["dept-b"],
+          "geos": ["cn"],
+          "time": [0, 1000],
+          "notices": ["n-JO"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "W",
+      "snapshot": "w1",
+      "rows": ["w-r1"],
+      "options": [
+        {
+          "option_id": "O",
+          "ops": ["raw", "aggregate"],
+          "audiences": ["dept-b"],
+          "geos": ["cn"],
+          "time": [0, 1000],
+          "notices": ["n-WO"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    }
+  ]
+}
