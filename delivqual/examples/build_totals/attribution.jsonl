@@ -1,0 +1,6 @@
+{"row_id": "a-r1", "join_key": "k1", "department": "dept-a"}
+{"row_id": "a-r2", "join_key": "k2", "department": "dept-a"}
+{"row_id": "a-r3", "join_key": "k3", "department": "dept-b"}
+{"row_id": "a-r4", "join_key": "k4", "department": "dept-c"}
+{"row_id": "a-r5", "join_key": "k5", "department": "dept-c"}
+{"row_id": "a-r6", "join_key": "k8", "department": "dept-z"}

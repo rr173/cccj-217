@@ -28,7 +28,7 @@ cd delivqual
 ./run_all.sh
 ```
 
-四个子命令（`./dq` 等价于 `python3 -m delivqual`，也可用
+四个核验子命令加一个离线构建命令（`./dq` 等价于 `python3 -m delivqual`，也可用
 `PYTHONPATH=. python3 -m delivqual`）：
 
 | 命令 | 作用 | 退出码 |
@@ -37,6 +37,7 @@ cd delivqual
 | `plan`       | 求全局一致计划或冲突证书 | 0 可行 / 11 不可行 / 12 unknown |
 | `explain-row`| 解释某一输出行的推导与义务 | 0 |
 | `verify-plan`| 只根据原资料与 plan 独立核实全部合同 | 0 有效 / 13 拒绝 / 12 unknown |
+| `build-totals`| 从两份明细生成部门汇总表与匹配的行级贡献图 | 0 成功 / 10 输入不符 / 2 IO 错误 |
 
 `plan` 支持 `--budget-seconds S` 与 `--budget-conflicts N`：预算耗尽返回
 `unknown`（退出码 12），**绝不谎报可行或不可行**。
@@ -123,6 +124,80 @@ cd delivqual
   ]
 }
 ```
+
+## build-totals：从明细到部门汇总（含可回查证据图）
+
+`build-totals` 不扩展授权规则或求解器：它从两份实际明细**计算数值与证据**，产出的
+`graph.json` 完全沿用上面的既有结构，可直接被 `validate` / `plan` /
+`verify-plan` / `explain-row` 读取。
+
+```sh
+./dq build-totals \
+  --sources examples/build_totals/sources.json \
+  --purchase examples/build_totals/purchase.jsonl        `# 采购明细` \
+  --attribution examples/build_totals/attribution.jsonl  `# 归属明细` \
+  --purchase-source P --purchase-snapshot p2026 \
+  --attribution-source A --attribution-snapshot a2026 \
+  --out-dir /tmp/totals-out     # 必须此前不存在；成功后目录才可见
+# ⇒ /tmp/totals-out/totals.jsonl + graph.json
+```
+
+### 算账规则（精确整数，无浮点）
+
+- 采购行 `{row_id, join_key, invoice_id, cents}`；归属行
+  `{row_id, join_key, department}`。标识与部门为非空字符串、按原值比较；
+  `cents` 为有符号整数（布尔值拒绝）。同一输入内 `row_id` 唯一且必须在所绑定
+  快照的 `rows` 清单中；两份输入绑定到**两个不同**的已登记源快照（两侧可用相同
+  字面行号，因为原子由 source_id+snapshot+row_id 共同定位）。
+- 两侧按 `join_key` 内连接，未匹配原行不计入；连接结果投影为
+  `(department, invoice_id, cents)`，完全相同的三元组只计一次，再按部门对
+  `cents` 求精确整数和。**不同发票的等额事实各计一次**；部门内事实相加为零仍
+  输出该部门；没有匹配时输出空表与空图结果。
+- `totals.jsonl` 每行 `{row_id, department, total_cents}`，`row_id` 为稳定编号
+  （部门名排序后的 `T0001`…），每个 ID 在图中恰好对应一个根（表 id 固定为
+  `totals`，挂在 `aggregate` 终态节点上）。
+
+### 证据图怎样回查（含线性压缩）
+
+生成的加工主干为 `scan →（每等价类一个）deduplicate → join → project →
+（事实级）deduplicate → union_all → aggregate`，贡献表达式仍是
+`source/all/any`，全部规则由既有 `validate` 强制：
+
+- **逻辑等价类**：同一侧、同一 `join_key` 且非行号字段完全相同的原行归为一类。
+  类内每行都是该类输出的充分替代凭据，用显式 `deduplicate` + `any` 表达；类的
+  输出只物化一次。一次真实连接是“采购类 × 归属类”两个类输出的 `all` 共同贡献
+  （两条边同指 `join` 节点），**不枚举 m×n 个物理行配对**。
+- **替代只经显式去重**：相同三元组经不同配对/不同键得出时，只能通过事实级
+  `deduplicate` + `any` 合并；等额但发票不同的事实各自独立，绝不合成一个；
+  不同键的两行不可能出现在同一连接证据中（连接只在类内容的键相等时生成）。
+- 审计展开语义：`all` = 共同贡献（笛卡尔组合，一次连接展开为一对真实原行），
+  `any` = 充分替代（任选一条）。测试套件用独立暴力实现逐事实核对：图中每条可
+  展开选择都是同键真实物理配对，配对集合与暴力结果逐对相等。
+
+### via_row 引用格式（无统一占位行号）
+
+| 形式 | 出现的边 | 解读 |
+|---|---|---|
+| `p-r3` / `a-r2`（原行号字面值） | scan、类级 deduplicate 的 any 边 | 该阶段的真实输入行；any 边指类内一条在去重后存活的候选原行 |
+| `C:<16位哈希>` | 类包装 → 去重节点 | 等价类输出行；哈希由类业务内容（join_key 与非行号字段）确定，沿子 any 可展开到全部成员原行 |
+| `J:<哈希>#L` / `#R` | 连接 `all` 的两条边 | 该连接输出行的左/右侧；哈希由两个类的内容确定，子树可展开到该侧任一成员 |
+| `J:<哈希>` | project 边、事实级去重 any 边 | 一对类连接投影出的三元组行 |
+| `F:<哈希>` | aggregate 边 | 去重后的业务事实（聚合输入）；哈希由 `(department, invoice_id, cents)` 确定 |
+| `T0001`… | 输出表行号 | 汇总行，即 `totals.jsonl` 的 `row_id` |
+
+所有哈希均为**内容寻址**（规范化 JSON 的 sha256 前 16 位），只与业务值有关：
+仅改变任一输入文件的行序，`totals.jsonl`、`graph.json` 与全部引用逐字节不变。
+
+### 失败与交付语义
+
+- 绑定未登记/两份输入同快照、重复行号、行号不在快照清单、坏记录（坏 JSON、
+  字段缺失/多余、空字符串、布尔或非整数 `cents`）一律退出 10，错误带文件名与
+  行号。
+- 输出目录已存在则拒绝（退出 10）且不改写；先写同级临时目录、两份文件都成功后
+  一次性 `os.replace` 改名，任何失败都清理临时目录，调用者读不到半份交付。
+- 重复键大样例（两侧各数千行、非行号字段全同）下，图随原行数**线性**增长：
+  连接贡献节点数 = 键数而非物理配对数；30 万物理配对在测试中压缩为 6000 输入行
+  量级的图，同时仍可展开回全部 30 万个真实配对。大样例运行时生成，不提交大数据。
 
 ## 语义规则（本题的合成规则）
 
@@ -213,14 +288,16 @@ cd delivqual
 | `bad_any/`    | any 中掺入一条越权推导（join 未授权），求解器选合法支路；`graph_broken.json` 演示结构校验拒绝（未登记原行、“已脱敏”免除、any 非 dedup 产生、悬空边） |
 | `mismatch/`   | 受众不符、时间不符（分别不可行），以及可行对照 |
 | `missing/`    | 表行缺少贡献表达式 ⇒ 缺失贡献 |
+| `build_totals/` | `build-totals` 小例：同一事实跨键、等额不同发票、零和部门、未匹配行；含 request 供 validate/plan 复跑 |
 | `gen_large.py`| 运行时生成大例（不落地预置大文件） |
 
 ## 复跑入口
 
 ```sh
-./run_all.sh                 # 全部：校验样例 + 主演练 + 验收套件 + 大例基准
+./run_all.sh                 # 全部：校验样例 + 主演练 + 验收套件 + build-totals + 大例基准
 python3 tests/sat_selftest.py    # 求解器随机 CNF 对照（8000 用例）
 python3 tests/acceptance.py      # 验收套件（小例/篡改/随机/大例/预算）
+python3 -I tests/build_totals.py # build-totals 套件（暴力对照/证据展开/换序/非法行/线性压缩/原子交付）
 python3 examples/gen_large.py --out /tmp/large --sources 24 --rows 12000 --tables 4 --seed 7
 ```
 

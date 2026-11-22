@@ -1,0 +1,40 @@
+{
+  "kind": "sources",
+  "version": 1,
+  "sources": [
+    {
+      "source_id": "P",
+      "snapshot": "p2026",
+      "rows": ["p-r1", "p-r2", "p-r3", "p-r4", "p-r5", "p-r6", "p-r7", "p-r8", "p-r9", "p-r10"],
+      "options": [
+        {
+          "option_id": "full",
+          "ops": ["raw", "aggregate", "join", "union", "project"],
+          "audiences": ["dept-a", "dept-b", "dept-c"],
+          "geos": ["cn"],
+          "time": [0, 100000],
+          "notices": ["n-P-full"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    },
+    {
+      "source_id": "A",
+      "snapshot": "a2026",
+      "rows": ["a-r1", "a-r2", "a-r3", "a-r4", "a-r5", "a-r6"],
+      "options": [
+        {
+          "option_id": "full",
+          "ops": ["raw", "aggregate", "join", "union", "project"],
+          "audiences": ["dept-a", "dept-b", "dept-c"],
+          "geos": ["cn"],
+          "time": [0, 100000],
+          "notices": ["n-A-full"],
+          "classifications": ["report"],
+          "mutex": []
+        }
+      ]
+    }
+  ]
+}

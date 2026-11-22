@@ -43,6 +43,27 @@ python3 -I tests/sat_selftest.py
 echo "========== 4. 验收套件（小例/篡改/随机/大例/预算） =========="
 python3 tests/acceptance.py
 
+echo "========== 4b. build-totals 验收（配对/去重/汇总/证据展开/线性压缩/原子交付） =========="
+python3 -I tests/build_totals.py
+# 从随库小例端到端生成一份图，再交给原有 validate/plan/verify-plan
+BT=$OUT/build_totals
+rm -rf "$BT"
+$DQ build-totals \
+  --sources examples/build_totals/sources.json \
+  --purchase examples/build_totals/purchase.jsonl \
+  --attribution examples/build_totals/attribution.jsonl \
+  --purchase-source P --purchase-snapshot p2026 \
+  --attribution-source A --attribution-snapshot a2026 \
+  --out-dir "$BT"
+$DQ validate --sources examples/build_totals/sources.json --graph "$BT/graph.json" \
+  --request examples/build_totals/request.json > /dev/null && echo "  生成图 validate: 通过"
+$DQ plan --sources examples/build_totals/sources.json --graph "$BT/graph.json" \
+  --request examples/build_totals/request.json --out "$OUT/bt_plan.json" >/dev/null
+$DQ verify-plan --sources examples/build_totals/sources.json --graph "$BT/graph.json" \
+  --request examples/build_totals/request.json --plan "$OUT/bt_plan.json" >/dev/null \
+  && echo "  生成图 plan + verify-plan: valid"
+cat "$BT/totals.jsonl" | sed 's/^/  /'
+
 echo "========== 5. 大例基准（运行时生成） =========="
 python3 examples/gen_large.py --out /tmp/large --sources 24 --rows 12000 --tables 4 --seed 7
 $DQ plan --sources /tmp/large/sources.json --graph /tmp/large/graph.json --request /tmp/large/request.json --out $OUT/large_plan.json >/dev/null

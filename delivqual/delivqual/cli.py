@@ -1,8 +1,8 @@
-"""命令行入口：validate / plan / explain-row / verify-plan。
+"""命令行入口：validate / plan / explain-row / verify-plan / build-totals。
 
 退出码：
-  0  成功（validate 通过 / plan 可行 / verify 有效 / explain 正常）
-  10 输入校验错误
+  0  成功（validate 通过 / plan 可行 / verify 有效 / explain / build-totals 正常）
+  10 输入校验错误（含 build-totals 的绑定不符、重复行号、坏记录）
   11 不可行（plan 给出冲突证书）
   12 unknown（预算耗尽）
   13 verify-plan 拒绝
@@ -116,6 +116,37 @@ def cmd_explain(args):
     return 0
 
 
+def cmd_build_totals(args):
+    """从两份明细构建部门汇总表 + 行级贡献图（原子交付到此前不存在的目录）。"""
+    from .buildtotals import BuildError, build_totals, deliver, load_jsonl
+    try:
+        sources_obj = load_json(args.sources)
+        purchase_records = load_jsonl(args.purchase, "采购明细")
+        attribution_records = load_jsonl(args.attribution, "归属明细")
+    except InputError as e:
+        print(f"输入错误: {e}", file=sys.stderr)
+        return 2
+    graph_id = args.graph_id or f"totals-of-{args.purchase_source}-{args.attribution_source}"
+    try:
+        totals_rows, graph_obj, stats = build_totals(
+            sources_obj, purchase_records, attribution_records,
+            (args.purchase_source, args.purchase_snapshot),
+            (args.attribution_source, args.attribution_snapshot),
+            graph_id)
+        out_dir = deliver(args.out_dir, totals_rows, graph_obj)
+    except BuildError as e:
+        print(json.dumps({"target": "build-totals", "valid": False, "errors": [str(e)]},
+                         ensure_ascii=False, indent=2))
+        return 10
+    except OSError as e:
+        print(f"写入失败: {e}", file=sys.stderr)
+        return 2
+    print(json.dumps({"target": "build-totals", "valid": True, "out_dir": out_dir,
+                      "files": ["totals.jsonl", "graph.json"], "stats": stats},
+                     ensure_ascii=False, indent=2))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="delivqual",
@@ -153,6 +184,20 @@ def main(argv=None):
     p4.add_argument("--row", required=True)
     p4.add_argument("--budget-seconds", type=float, default=30.0)
     p4.set_defaults(fn=cmd_explain)
+
+    p5 = sub.add_parser(
+        "build-totals",
+        help="从采购/归属两份明细生成部门汇总 totals.jsonl 与匹配的 graph.json")
+    p5.add_argument("--sources", required=True, help="已登记源快照的 sources.json")
+    p5.add_argument("--purchase", required=True, help="采购明细 JSONL（row_id, join_key, invoice_id, cents）")
+    p5.add_argument("--attribution", required=True, help="归属明细 JSONL（row_id, join_key, department）")
+    p5.add_argument("--purchase-source", required=True)
+    p5.add_argument("--purchase-snapshot", required=True)
+    p5.add_argument("--attribution-source", required=True)
+    p5.add_argument("--attribution-snapshot", required=True)
+    p5.add_argument("--out-dir", required=True, help="目标输出目录（必须此前不存在）")
+    p5.add_argument("--graph-id", help="生成图的 graph_id（缺省按绑定确定性生成）")
+    p5.set_defaults(fn=cmd_build_totals)
 
     args = ap.parse_args(argv)
     return args.fn(args)

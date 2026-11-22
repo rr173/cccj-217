@@ -1,0 +1,10 @@
+{"row_id": "p-r1", "join_key": "k1", "invoice_id": "INV-1", "cents": 100}
+{"row_id": "p-r2", "join_key": "k2", "invoice_id": "INV-1", "cents": 100}
+{"row_id": "p-r3", "join_key": "k3", "invoice_id": "INV-2", "cents": 200}
+{"row_id": "p-r4", "join_key": "k3", "invoice_id": "INV-2", "cents": 200}
+{"row_id": "p-r5", "join_key": "k4", "invoice_id": "INV-3", "cents": 300}
+{"row_id": "p-r6", "join_key": "k5", "invoice_id": "INV-3", "cents": -300}
+{"row_id": "p-r7", "join_key": "k6", "invoice_id": "INV-4", "cents": 50}
+{"row_id": "p-r8", "join_key": "k7", "invoice_id": "INV-5", "cents": 999}
+{"row_id": "p-r9", "join_key": "k1", "invoice_id": "INV-6", "cents": 70}
+{"row_id": "p-r10", "join_key": "k2", "invoice_id": "INV-7", "cents": 70}
